@@ -63,22 +63,22 @@ The experimental environment of this project is as follows:
 
 ```
 lidar_obstacle_detection
-	|-- README.md					# Introduction of the document
-	|-- CMakeLists.txt				# Configuration file to generate the makefile
+	|-- README.md				# Introduction of the document
+	|-- CMakeLists.txt			# Configuration file to generate the makefile
 	|-- media
-		|-- xxx.gif					# Project operation results
+		|-- xxx.gif			# Project operation results
 	|-- src
 		|-- ProcessPointClouds.h		
-		|-- ProcessPointClouds.c	# Functions for filtering, segmenting, clustering,                 					     # boxing, loading, and saving pcd.
-		|-- enviroments.cpp			# the main file for using pcl viewer and processing 									# and visualizing pcd.
+		|-- ProcessPointClouds.c	# Functions for filtering, segmenting, clustering, boxing, loading, and saving pcd.			 
+		|-- enviroments.cpp		# the main file for using pcl viewer and processing and visualizing pcd.
 		|-- sensors
-			|-- data/				# pcd data
-			|-- lidar.h				# functions using ray casting for creating pcd.
+			|-- data/		# pcd data
+			|-- lidar.h		# functions using ray casting for creating pcd.
 		|-- render
-			|-- box.h				# the struct definitions for box objects
+			|-- box.h		# the struct definitions for box objects
 			|-- render.h
-			|-- render.cpp			# define the classes and methods for rendering objects.
+			|-- render.cpp		# define the classes and methods for rendering objects.
 		|-- quiz
-			|-- cluster/			# Implementation of Euclidean clustering based on KD-Tree
-			|-- ransac/				# Implementation of RANSAC
+			|-- cluster/		# Implementation of Euclidean clustering based on KD-Tree
+			|-- ransac/		# Implementation of RANSAC
 ```
