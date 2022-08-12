@@ -6,12 +6,12 @@ The task of this project is to detect car and trucks on a narrow street using li
 
 The experimental environment of this project is as follows: 
 
-| Tools  | Versions | View command                  |
-| ------ | -------- | ----------------------------- |
-| Ubuntu | 20.04    | `lsb_release -a`              |
-| PCL    | 1.10     | `ls /usr/include/ | grep pcl` |
-| C++    | 14       | `man gcc | grep std=c++`      |
-| gcc    | 9.4.0    | `gcc --version`               |
+| Tools  | Versions | View command                 |
+| ------ | -------- | ---------------------------- |
+| Ubuntu | 20.04    | `lsb_release -a`             |
+| PCL    | 1.10     | ls /usr/include/ \| grep pcl |
+| C++    | 14       | man gcc \| grep std=c++      |
+| gcc    | 9.4.0    | `gcc --version`              |
 
 
 
