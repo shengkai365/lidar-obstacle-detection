@@ -24,29 +24,31 @@ template<typename PointT>
 typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(typename pcl::PointCloud<PointT>::Ptr cloud, float filterRes, Eigen::Vector4f minPoint, Eigen::Vector4f maxPoint)
 {
 
-    // Time segmentation process
+    // 点云过滤开始时间
     auto startTime = std::chrono::steady_clock::now();
 
-    // TODO:: Fill in the function to do voxel grid point reduction and region based filtering
-    // Create the filtering object: downsample the dataset using a leaf size of 0.2m
-    pcl::VoxelGrid<PointT> vg;
+    // 存放体素网格过滤后点云对象
     typename pcl::PointCloud<PointT>::Ptr cloudFiltered (new pcl::PointCloud<PointT>);
 
+    // 使用filterRes的体素网格大小对数据集进行降采样过滤处理
+    pcl::VoxelGrid<PointT> vg; // 创建过滤对象：
     vg.setInputCloud(cloud);
     vg.setLeafSize(filterRes, filterRes, filterRes);
     vg.filter(*cloudFiltered);
 
+
+    // 存放ROI过滤后点云对象
     typename pcl::PointCloud<PointT>::Ptr cloudRegion (new pcl::PointCloud<PointT>);
 
-    pcl::CropBox<PointT> region(true);
-    region.setMin(minPoint);
-    region.setMax(maxPoint);
+    pcl::CropBox<PointT> region(true);  // ROI滤波器对象
+    region.setMin(minPoint);            // minPoint：立方体最小对角点, 一般为(x,y,z,1)
+    region.setMax(maxPoint);            // maxPoint：立方体最大对角点，(x,y,z,1)最后一个元素一般为1
     region.setInputCloud(cloudFiltered);
     region.filter(*cloudRegion);
 
-    std::vector<int> indices;
+    std::vector<int> indices;           // 查找自身车辆车顶的点云数据索引
 
-    pcl::CropBox<PointT> roof(true);
+    pcl::CropBox<PointT> roof(true);    // 自身车辆ROI滤波对象
     roof.setMin(Eigen::Vector4f (-1.5, -1.7, -1, 1));
     roof.setMax(Eigen::Vector4f (2.6, 1.7, -0.4, 1));
     roof.setInputCloud(cloudRegion);
@@ -58,10 +60,10 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
         inliers->indices.push_back(point);
     }
 
-    pcl::ExtractIndices<PointT> extract;
-    extract.setInputCloud (cloudRegion);
+    pcl::ExtractIndices<PointT> extract;    // 点云提取对象
+    extract.setInputCloud (cloudRegion); 
     extract.setIndices (inliers);
-    extract.setNegative (true);
+    extract.setNegative (true);             // 将inliers过滤掉
     extract.filter (*cloudRegion);
 
     auto endTime = std::chrono::steady_clock::now();
@@ -69,7 +71,6 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
     std::cout << "filtering took " << elapsedTime.count() << " milliseconds" << std::endl;
 
     return cloudRegion;
-
 }
 
 
@@ -226,8 +227,10 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::loadPcd(std::s
 template<typename PointT>
 std::vector<boost::filesystem::path> ProcessPointClouds<PointT>::streamPcd(std::string dataPath)
 {
-
-    std::vector<boost::filesystem::path> paths(boost::filesystem::directory_iterator{dataPath}, boost::filesystem::directory_iterator{});
+    boost::filesystem::directory_iterator startIter(dataPath);
+    boost::filesystem::directory_iterator endIter;
+    std::vector<boost::filesystem::path> paths(startIter, endIter);
+    // std::vector<boost::filesystem::path> paths(boost::filesystem::directory_iterator{dataPath}, boost::filesystem::directory_iterator{});
 
     // sort files in accending order so playback is chronological
     sort(paths.begin(), paths.end());

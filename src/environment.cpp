@@ -1,86 +1,18 @@
-/* \author Aaron Brown */
-// Create simple 3d highway enviroment using PCL
-// for exploring self-driving car sensors
-
-#include "sensors/lidar.h"
 #include "render/render.h"
 #include "processPointClouds.h"
 // using templates for processPointClouds so also include .cpp to help linker
 #include "processPointClouds.cpp"
 
-std::vector<Car> initHighway(bool renderScene, pcl::visualization::PCLVisualizer::Ptr& viewer)
-{
 
-    Car egoCar( Vect3(0,0,0), Vect3(4,2,2), Color(0,1,0), "egoCar");
-    Car car1( Vect3(15,0,0), Vect3(4,2,2), Color(0,0,1), "car1");
-    Car car2( Vect3(8,-4,0), Vect3(4,2,2), Color(0,0,1), "car2");	
-    Car car3( Vect3(-12,4,0), Vect3(4,2,2), Color(0,0,1), "car3");
-  
-    std::vector<Car> cars;
-    cars.push_back(egoCar);
-    cars.push_back(car1);
-    cars.push_back(car2);
-    cars.push_back(car3);
-
-    if(renderScene)
-    {
-        renderHighway(viewer);
-        egoCar.render(viewer);
-        car1.render(viewer);
-        car2.render(viewer);
-        car3.render(viewer);
-    }
-
-    return cars;
-}
-
-void simpleHighway(pcl::visualization::PCLVisualizer::Ptr& viewer)
-{
-    // ----------------------------------------------------
-    // -----Open 3D viewer and display simple highway -----
-    // ----------------------------------------------------
-    
-    // RENDER OPTIONS
-    bool renderScene = false;
-    std::vector<Car> cars = initHighway(renderScene, viewer);
-    
-    // TODO:: Create lidar sensor 
-    Lidar* lidar = new Lidar(cars, 0);
-
-    pcl::PointCloud<pcl::PointXYZ>::Ptr inputCloud = lidar->scan();
-
-    // 1. 
-    // renderRays(viewer, lidar->position, inputCloud);
-
-    // 2.
-    // renderPointCloud(viewer, inputCloud, "inputCloud");
-
-    // TODO:: Create point processor
-    ProcessPointClouds<pcl::PointXYZ> pointProcessor;
-    std::pair<typename pcl::PointCloud<pcl::PointXYZ>::Ptr, typename pcl::PointCloud<pcl::PointXYZ>::Ptr> segmentCloud = pointProcessor.SegmentPlane(inputCloud, 100, 0.2);
-    // renderPointCloud(viewer, segmentCloud.first, "obstCloud", Color(1, 0, 0));
-    // renderPointCloud(viewer, segmentCloud.second, "planeCloud", Color(0, 1, 0));
-
-    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> cloudClusters = pointProcessor.Clustering(segmentCloud.first, 1.0, 3, 30);
-    
-    int clusterId = 0;
-    std::vector<Color> colors = {Color(1, 0, 0), Color(0, 1, 0), Color(0, 0, 1)};
-    for (pcl::PointCloud<pcl::PointXYZ>::Ptr cluster: cloudClusters)
-    {
-        std::cout << "cluster size " ; 
-        pointProcessor.numPoints(cluster);
-        renderPointCloud(viewer, cluster, "obstCloud" + std::to_string(clusterId), colors[clusterId]);
-
-        Box box = pointProcessor.BoundingBox(cluster);
-        renderBox(viewer, box, clusterId);
-        clusterId ++;
-    }
-}
-
+// 对输入点云数据进行过滤、分割、聚类，并渲染到3D viewer上
+// 参数：
+//      - viewer：3D Viewer对象
+//      - pointProcessor: 点云预处理对象
+//      - inputCloud：点云数据对象
 void cityBlock(pcl::visualization::PCLVisualizer::Ptr& viewer, ProcessPointClouds<pcl::PointXYZI>* pointProcessor, const pcl::PointCloud<pcl::PointXYZI>::Ptr& inputCloud)
 {
     // ----------------------------------------------------
-    // -----Open 3D viewer and display City Block     -----
+    // -----  Open 3D viewer and display City Block   -----
     // ----------------------------------------------------
     // Setting hyper parameters
     // FilterCloud
@@ -95,16 +27,16 @@ void cityBlock(pcl::visualization::PCLVisualizer::Ptr& viewer, ProcessPointCloud
     int minsize = 10;
     int maxsize = 140;
 
-    // 1. Filter cloud to reduce amount of points
+    // 1. 过滤点云以减少其数量
     pcl::PointCloud<pcl::PointXYZI>::Ptr filteredCloud = pointProcessor->FilterCloud(inputCloud, filterRes, minpoint, maxpoint);
 
-    // 2. Segment the filtered cloud into obstacles and road
+    // 2. 将过滤后的点云划分为障碍物和道路
     std::pair<pcl::PointCloud<pcl::PointXYZI>::Ptr, pcl::PointCloud<pcl::PointXYZI>::Ptr> segmentCloud = pointProcessor->SegmentPlane(filteredCloud, maxIterations, distanceThreshold);
 
-    // Render the plane
+    // 渲染平面
     renderPointCloud(viewer, segmentCloud.second, "planeCloud", Color(0, 1, 1));
 
-    // 3. Cluster different obstacle cloud
+    // 3. 聚集不同的障碍物点云
     std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> cloudClusters = pointProcessor->Clustering(segmentCloud.first, clusterTolerance, minsize, maxsize);
     int clusterId = 0;
     std::vector<Color> colors = {Color(1, 0, 0), Color(0, 1, 0), Color(0, 0, 1)};
@@ -115,12 +47,11 @@ void cityBlock(pcl::visualization::PCLVisualizer::Ptr& viewer, ProcessPointCloud
         pointProcessor->numPoints(cluster);
         renderPointCloud(viewer, cluster, "obstCloud" + std::to_string(clusterId), colors[clusterId % colors.size()]);
 
-        // 4. Find bounding boxes for each obstacle cluster.
+        // 4. 为每个障碍物群寻找边界框
         Box box = pointProcessor->BoundingBox(cluster);
         renderBox(viewer, box, clusterId, colors[clusterId % colors.size()]);
         clusterId ++;
     }
-
 }
 
 
@@ -156,39 +87,40 @@ int main (int argc, char** argv)
 {
     std::cout << "starting enviroment" << std::endl;
     
-    // The viewer is used to handle all your visualization of objects on the screen. 
+    // viewer用来处理你在屏幕上的所有可视化对象的
     pcl::visualization::PCLVisualizer::Ptr viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
     
-    // sets up specified viewing angles in your window.
+    // 在你的窗口中设置指定的观察角度
     CameraAngle setAngle = XY;
     initCamera(setAngle, viewer);
 
-    // create the pointProcessorI object, which is defined in the processPointClouds.cpp
+    // 创建 pointProcessorI 对象，它被定义在 processPointClouds.cpp 中
     ProcessPointClouds<pcl::PointXYZI>* pointProcessorI = new ProcessPointClouds<pcl::PointXYZI>();
     
-    // read-in point cloud stream
+    // 读入点云流
     std::vector<boost::filesystem::path> stream = pointProcessorI->streamPcd("../src/sensors/data/pcd/data_1");
     auto streamIterator = stream.begin();
     
-    // Create a pointer to store the address of the read-in point cloud object
+    // 创建一个指针来存储读入点云对象的地址
     pcl::PointCloud<pcl::PointXYZI>::Ptr inputCloudI;
 
     while (!viewer->wasStopped ())
     {
-        // Clear viewer
+        // 清理 viewer
         viewer->removeAllPointClouds();
         viewer->removeAllShapes();
 
-        // Load pcd and run obstacle detection process
+        // 加载pcd并运行障碍物检测程序
         inputCloudI = pointProcessorI->loadPcd((*streamIterator).string());
 
-        // Key Logic: Open 3D viewer and display City Block
+        // 关键逻辑：打开3D viewer并显示城市街区
         cityBlock(viewer, pointProcessorI, inputCloudI);
 
         streamIterator ++;
         if (streamIterator == stream.end())
             streamIterator = stream.begin();
-
+        
+        // 表示内部渲染函数，重新渲染输出
         viewer->spinOnce();
     }
     

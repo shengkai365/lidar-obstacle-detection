@@ -65,8 +65,6 @@ The experimental environment of this project is as follows:
 lidar_obstacle_detection
 	|-- README.md				# Introduction of the document
 	|-- CMakeLists.txt			# Configuration file to generate the makefile
-	|-- media
-		|-- xxx.gif			# Project operation results
 	|-- src
 		|-- ProcessPointClouds.h		
 		|-- ProcessPointClouds.c	# Functions for filtering, segmenting, clustering, boxing, loading, and saving pcd.			 
