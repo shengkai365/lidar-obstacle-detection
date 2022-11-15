@@ -34,12 +34,26 @@ public:
     // 参数：
     //      - cloud: 输入点云
     //      - filterRes: 体素网格的大小
-    //      - minPoint: ROI的最近点
-    //      - maxPoint: ROI的最远点
+    //      - minPoint: ROI长方体的xyz最小顶点
+    //      - maxPoint: ROI长方体的xyz最大顶点
     typename pcl::PointCloud<PointT>::Ptr FilterCloud(typename pcl::PointCloud<PointT>::Ptr cloud, float filterRes, Eigen::Vector4f minPoint, Eigen::Vector4f maxPoint);
 
+
+    // 根据道路平面点云索引, 分别提取平面点云和障碍物点云
+    // 参数：
+    //      - inliers：道路点云索引
+    //      - cloud：需要分割的点云
+    // 返回：
+    //      - (地面点云, 障碍物点云)
     std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> SeparateClouds(pcl::PointIndices::Ptr inliers, typename pcl::PointCloud<PointT>::Ptr cloud);
 
+    // 用pcl中RANSAC方法进行点云分割, 得到道路点和场景点
+    // 参数：
+    //      - cloud：需要分割的点云
+    //      - int maxIterations：最大迭代次数
+    //      - float distanceThreshold：查询点到目标模型的距离阈值
+    // 返回：
+    //      - (地面点云, 障碍物点云)
     std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> SegmentPlane(typename pcl::PointCloud<PointT>::Ptr cloud, int maxIterations, float distanceThreshold);
 
     std::vector<typename pcl::PointCloud<PointT>::Ptr> Clustering(typename pcl::PointCloud<PointT>::Ptr cloud, float clusterTolerance, int minSize, int maxSize);

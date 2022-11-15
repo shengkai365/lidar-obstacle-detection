@@ -76,6 +76,10 @@ std::unordered_set<int> Ransac(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, int ma
 	// If distance is smaller than threshold count it as inlier
 
 	// Return indicies of inliers from fitted line with most inliers
+	while (maxIterations --)
+	{
+		
+	}
 	
 	return inliersResult;
 

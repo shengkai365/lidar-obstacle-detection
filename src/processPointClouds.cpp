@@ -66,6 +66,7 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
     extract.setNegative (true);             // 将inliers过滤掉
     extract.filter (*cloudRegion);
 
+    // 点云过滤结束时间
     auto endTime = std::chrono::steady_clock::now();
     auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
     std::cout << "filtering took " << elapsedTime.count() << " milliseconds" << std::endl;
@@ -77,8 +78,9 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
 template<typename PointT>
 std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::SeparateClouds(pcl::PointIndices::Ptr inliers, typename pcl::PointCloud<PointT>::Ptr cloud) 
 {
-    // TODO: Create two new point clouds, one cloud with obstacles and other with segmented plane
+    // 创建障碍物点云
     typename pcl::PointCloud<PointT>::Ptr obstCloud (new pcl::PointCloud<PointT> ());
+    // 创建平面点云
     typename pcl::PointCloud<PointT>::Ptr planeCloud (new pcl::PointCloud<PointT> ());
 
     for (int index: inliers->indices)
@@ -86,13 +88,13 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
         planeCloud->points.push_back(cloud->points[index]);
     }
 
-    pcl::ExtractIndices<PointT> extract;
-    extract.setInputCloud (cloud);
+    pcl::ExtractIndices<PointT> extract; // 点云提取对象
+    extract.setInputCloud (cloud);      
     extract.setIndices (inliers);
-    extract.setNegative (true);
-    extract.filter (*obstCloud);
+    extract.setNegative (true);          // 提取非inliers部分点云
+    extract.filter (*obstCloud);         // 存在障碍物点云中
 
-    // std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> segResult(cloud, cloud);
+    
     std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> segResult(obstCloud, planeCloud);
 
     return segResult;
@@ -102,23 +104,21 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
 template<typename PointT>
 std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::SegmentPlane(typename pcl::PointCloud<PointT>::Ptr cloud, int maxIterations, float distanceThreshold)
 {
-    // Time segmentation process
+    // 点云分割开始时间
     auto startTime = std::chrono::steady_clock::now();
-	
-    // TODO:: Fill in this function to find inliers for the cloud.
     
-    pcl::SACSegmentation<PointT> seg;
-    // pcl::PointIndices::Ptr inliers;
-    pcl::PointIndices::Ptr inliers {new pcl::PointIndices};
-    pcl::ModelCoefficients::Ptr coefficients {new pcl::ModelCoefficients};
+    pcl::SACSegmentation<PointT> seg;                          // 分割类
+    pcl::PointIndices::Ptr inliers {new pcl::PointIndices};    // 目标模型内联点,即地面
+    pcl::ModelCoefficients::Ptr coefficients {new pcl::ModelCoefficients};  // 模型系数类
 
     seg.setOptimizeCoefficients(true);
-    seg.setModelType(pcl::SACMODEL_PLANE);
-    seg.setMethodType(pcl::SAC_RANSAC);
-    seg.setMaxIterations(maxIterations);
+    seg.setModelType(pcl::SACMODEL_PLANE);  // 设置提取目标模型的属性（平面、球、圆柱等）
+    seg.setMethodType(pcl::SAC_RANSAC);     // 设置采样方法（RANSAC、LMedS等）
+    seg.setMaxIterations(maxIterations);    // 设置最大迭代次数，默认为50
+    // 查询点到目标模型的距离阈值（如果大于此阈值，则查询点不在目标模型上，默认为0）
     seg.setDistanceThreshold(distanceThreshold);
 
-    // Segment the largest planar component from the input cloud
+    // 从输入云中分割出最大的平面
     seg.setInputCloud(cloud);
     seg.segment(*inliers, *coefficients);
     if(inliers->indices.size() == 0)
@@ -126,10 +126,12 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
         std::cout << "Could not estimate a planar model for the given dataset" << std::endl;
     }
 
+    // 点云分割结束时间
     auto endTime = std::chrono::steady_clock::now();
     auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
     std::cout << "plane segmentation took " << elapsedTime.count() << " milliseconds" << std::endl;
 
+    // 将地面点云和障碍物点云分开
     std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> segResult = SeparateClouds(inliers,cloud);
     return segResult;
 }
