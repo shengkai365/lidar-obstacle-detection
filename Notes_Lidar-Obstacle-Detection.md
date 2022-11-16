@@ -436,10 +436,6 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
    	// 点云分割开始时间
        auto startTime = std::chrono::steady_clock::now();
    	
-   	// Measure distance between every point and fitted line
-   	// If distance is smaller than threshold count it as inlier
-   
-   	// Return indicies of inliers from fitted line with most inliers
    	while (maxIterations --)
    	{
    		std::unordered_set<int> inliers;
@@ -470,6 +466,7 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
    		c = (x2 - x1)*(y3 - y1) - (y2 - y1)*(x3 - x1);
    		d = -(a * x1 + b * y1 + c * z1);
    
+           // Measure distance between every point and fitted line
    		for (int i = 0; i < cloud->points.size(); i ++)
    		{
    			if (inliers.count(i)) continue;
@@ -478,21 +475,22 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
    			y = cloud->points[i].y;
    			z = cloud->points[i].z;
    			distance = fabs(a*x + b*y + c*z + d) / sqrt(a*a + b*b + c*c);
+               // If distance is smaller than threshold count it as inlier
    			if (distance <= distanceTol) inliers.insert(i);
    		}
-   
+   		// Return indicies of inliers from fitted line with most inliers
    		if (inliers.size() > inliersResult.size())
    			inliersResult = inliers;
    	}
    	// 点云分割结束时间
        auto endTime = std::chrono::steady_clock::now();
        auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-       std::cout << "my RansacPlane segmentation took " << elapsedTime.count() << " milliseconds" << std::endl;
+       std::cout << "My RansacPlane segmentation took " << elapsedTime.count() << " milliseconds" << std::endl;
    
    	return inliersResult;
    }
    ```
-
+   
    
 
 #### 4.4 基于KD-Tree的点云聚类

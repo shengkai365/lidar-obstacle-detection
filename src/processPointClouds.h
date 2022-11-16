@@ -15,6 +15,7 @@
 #include <iostream> 
 #include <string>  
 #include <vector>
+#include <unordered_set>
 #include <ctime>
 #include <chrono>
 #include "render/box.h"
@@ -46,6 +47,8 @@ public:
     // 返回：
     //      - (地面点云, 障碍物点云)
     std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> SeparateClouds(pcl::PointIndices::Ptr inliers, typename pcl::PointCloud<PointT>::Ptr cloud);
+    std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> SeparateClouds(std::unordered_set<int> inliers, typename pcl::PointCloud<PointT>::Ptr cloud);
+
 
     // 用pcl中RANSAC方法进行点云分割, 得到道路点和场景点
     // 参数：
@@ -55,7 +58,17 @@ public:
     // 返回：
     //      - (地面点云, 障碍物点云)
     std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> SegmentPlane(typename pcl::PointCloud<PointT>::Ptr cloud, int maxIterations, float distanceThreshold);
-
+    
+    
+    // 用手写的RANSAC方法进行点云分割, 得到道路点和场景点
+    // 参数：
+    //      - cloud：需要分割的点云
+    //      - int maxIterations：最大迭代次数
+    //      - float distanceThreshold：查询点到目标模型的距离阈值
+    // 返回：
+    //      - (地面点云, 障碍物点云)
+    std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> RansacPlane(typename pcl::PointCloud<PointT>::Ptr cloud, int maxIterations, float distanceThreshold);
+    
     std::vector<typename pcl::PointCloud<PointT>::Ptr> Clustering(typename pcl::PointCloud<PointT>::Ptr cloud, float clusterTolerance, int minSize, int maxSize);
 
     Box BoundingBox(typename pcl::PointCloud<PointT>::Ptr cluster);

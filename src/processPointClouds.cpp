@@ -74,6 +74,25 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
     return cloudRegion;
 }
 
+template<typename PointT>
+std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::SeparateClouds(std::unordered_set<int> inliers, typename pcl::PointCloud<PointT>::Ptr cloud)
+{
+    // 创建障碍物点云
+    typename pcl::PointCloud<PointT>::Ptr obstCloud (new pcl::PointCloud<PointT> ());
+    // 创建平面点云
+    typename pcl::PointCloud<PointT>::Ptr planeCloud (new pcl::PointCloud<PointT> ());
+
+    for (int index = 0; index < cloud->points.size(); index ++)
+    {
+        if (inliers.count(index))
+            planeCloud->points.push_back(cloud->points[index]);
+        else
+            obstCloud->points.push_back(cloud->points[index]);
+    }
+    
+    std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> segResult(obstCloud, planeCloud);
+    return segResult;
+}
 
 template<typename PointT>
 std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::SeparateClouds(pcl::PointIndices::Ptr inliers, typename pcl::PointCloud<PointT>::Ptr cloud) 
@@ -94,9 +113,75 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
     extract.setNegative (true);          // 提取非inliers部分点云
     extract.filter (*obstCloud);         // 存在障碍物点云中
 
-    
     std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> segResult(obstCloud, planeCloud);
+    return segResult;
+}
 
+template<typename PointT>
+std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::RansacPlane(typename pcl::PointCloud<PointT>::Ptr cloud, int maxIterations, float distanceThreshold)
+{
+    std::unordered_set<int> inliersResult;
+	srand(time(NULL));
+	
+	// 点云分割开始时间
+    auto startTime = std::chrono::steady_clock::now();
+
+	// 迭代 maxIterations 次
+	while (maxIterations --)
+	{
+		std::unordered_set<int> inliers;
+		// 随机抽样构成平面的最小点集
+		while (inliers.size() < 3)
+		{
+			inliers.insert(rand() % cloud->points.size());
+		}
+
+		// 定义计算点到平面距离所需的变量
+		float x1, y1, z1, x2, y2, z2, x3, y3, z3;
+		auto itr = inliers.begin();
+		x1 = cloud->points[*itr].x;
+		y1 = cloud->points[*itr].y;
+		z1 = cloud->points[*itr].z;
+		itr ++;
+		x2 = cloud->points[*itr].x;
+		y2 = cloud->points[*itr].y;
+		z2 = cloud->points[*itr].z;
+		itr ++;
+		x3 = cloud->points[*itr].x;
+		y3 = cloud->points[*itr].y;
+		z3 = cloud->points[*itr].z;
+
+		float a, b, c, d;
+		a = (y2 - y1)*(z3 - z1) - (z2 - z1)*(y3 - y1);
+		b = (z2 - z1)*(x3 - x1) - (x2 - x1)*(z3 - z1);
+		c = (x2 - x1)*(y3 - y1) - (y2 - y1)*(x3 - x1);
+		d = -(a * x1 + b * y1 + c * z1);
+
+        // 测量每个点和拟合平面之间的距离
+		for (int i = 0; i < cloud->points.size(); i ++)
+		{
+			if (inliers.count(i)) continue;
+			float x, y, z, distance;
+			x = cloud->points[i].x;
+			y = cloud->points[i].y;
+			z = cloud->points[i].z;
+			distance = fabs(a*x + b*y + c*z + d) / sqrt(a*a + b*b + c*c);
+
+            // 如果距离小于阈值，把其当作内联点
+			if (distance <= distanceThreshold) inliers.insert(i);
+		}
+
+        // 选择具有最多内联点的索引集合作为返回值
+		if (inliers.size() > inliersResult.size())
+			inliersResult = inliers;
+	}
+	// 点云分割结束时间
+    auto endTime = std::chrono::steady_clock::now();
+    auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+    std::cout << "my RansacPlane segmentation took " << elapsedTime.count() << " milliseconds" << std::endl;
+
+    // 将地面点云和障碍物点云分开
+    std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> segResult = SeparateClouds(inliersResult, cloud);
     return segResult;
 }
 

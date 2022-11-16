@@ -31,6 +31,9 @@ void cityBlock(pcl::visualization::PCLVisualizer::Ptr& viewer, ProcessPointCloud
     pcl::PointCloud<pcl::PointXYZI>::Ptr filteredCloud = pointProcessor->FilterCloud(inputCloud, filterRes, minpoint, maxpoint);
 
     // 2. 将过滤后的点云划分为障碍物和道路
+    // // 手写的Ransac分割算法, 比较慢
+    // std::pair<pcl::PointCloud<pcl::PointXYZI>::Ptr, pcl::PointCloud<pcl::PointXYZI>::Ptr> segmentCloud = pointProcessor->RansacPlane(filteredCloud, maxIterations, distanceThreshold);
+    
     std::pair<pcl::PointCloud<pcl::PointXYZI>::Ptr, pcl::PointCloud<pcl::PointXYZI>::Ptr> segmentCloud = pointProcessor->SegmentPlane(filteredCloud, maxIterations, distanceThreshold);
 
     // 渲染平面
