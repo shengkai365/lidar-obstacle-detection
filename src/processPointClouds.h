@@ -69,8 +69,21 @@ public:
     //      - (地面点云, 障碍物点云)
     std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> RansacPlane(typename pcl::PointCloud<PointT>::Ptr cloud, int maxIterations, float distanceThreshold);
     
+    // 使用PCL内置的欧式聚类函数对障碍物点云进行聚类
+    // 参数：
+    //      - cloud：障碍物点云
+    //      - clusterTolerance：距离容忍度, 在这个距离之内的任何点都将被组合在一起
+    //      - minSize：设定一个集合中最小点数, 点数太小被视为噪音
+    //      - maxSize: 设定一个集合中最大点数, 点数太大被视为多个障碍物的重叠
+    // 返回：
+    //      - 不同障碍物点云组成的列表
     std::vector<typename pcl::PointCloud<PointT>::Ptr> Clustering(typename pcl::PointCloud<PointT>::Ptr cloud, float clusterTolerance, int minSize, int maxSize);
 
+
+    // 根据聚类物体点云创建box对象, 即所有点云在xyz上极值构成的包围盒
+    // 参数：
+    //      - cluster: 聚类点云指针
+    // 返回：Box包围盒对象
     Box BoundingBox(typename pcl::PointCloud<PointT>::Ptr cluster);
 
     void savePcd(typename pcl::PointCloud<PointT>::Ptr cloud, std::string file);

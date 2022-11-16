@@ -422,20 +422,49 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
 5. 平面模型的 RANSAC 算法实现
 
    ```c++
+   // 根据道路平面点云索引, 分别提取平面点云和障碍物点云
+   // 参数：
+   //      - inliers：道路点云索引
+   //      - cloud：需要分割的点云
+   // 返回：
+   //      - (地面点云, 障碍物点云)
+   template<typename PointT>
+   std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::SeparateClouds(std::unordered_set<int> inliers, typename pcl::PointCloud<PointT>::Ptr cloud)
+   {
+       // 创建障碍物点云
+       typename pcl::PointCloud<PointT>::Ptr obstCloud (new pcl::PointCloud<PointT> ());
+       // 创建平面点云
+       typename pcl::PointCloud<PointT>::Ptr planeCloud (new pcl::PointCloud<PointT> ());
+   
+       for (int index = 0; index < cloud->points.size(); index ++)
+       {
+           if (inliers.count(index))
+               planeCloud->points.push_back(cloud->points[index]);
+           else
+               obstCloud->points.push_back(cloud->points[index]);
+       }
+       
+       std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> segResult(obstCloud, planeCloud);
+       return segResult;
+   }
+   
+   
    // 根据RANSAC算法求平面内联点
    // 参数：
    //		- cloud: 输入点云
    //		- maxIterations: 算法最大迭代次数
    //		- distanceTol: 距离阈值, 到平面的距离不大于阈值的点视为内联点
-   // 返回：内联点索引的集合
-   std::unordered_set<int> RansacPlane(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, int maxIterations, float distanceTol)
+   // 返回：(地面点云, 障碍物点云)
+   template<typename PointT>
+   std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::RansacPlane(typename pcl::PointCloud<PointT>::Ptr cloud, int maxIterations, float distanceThreshold)
    {
-   	std::unordered_set<int> inliersResult;
+       std::unordered_set<int> inliersResult;
    	srand(time(NULL));
    	
    	// 点云分割开始时间
        auto startTime = std::chrono::steady_clock::now();
-   	
+   
+   	// 迭代 maxIterations 次
    	while (maxIterations --)
    	{
    		std::unordered_set<int> inliers;
@@ -466,7 +495,7 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
    		c = (x2 - x1)*(y3 - y1) - (y2 - y1)*(x3 - x1);
    		d = -(a * x1 + b * y1 + c * z1);
    
-           // Measure distance between every point and fitted line
+           // 测量每个点和拟合平面之间的距离
    		for (int i = 0; i < cloud->points.size(); i ++)
    		{
    			if (inliers.count(i)) continue;
@@ -475,19 +504,23 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
    			y = cloud->points[i].y;
    			z = cloud->points[i].z;
    			distance = fabs(a*x + b*y + c*z + d) / sqrt(a*a + b*b + c*c);
-               // If distance is smaller than threshold count it as inlier
-   			if (distance <= distanceTol) inliers.insert(i);
+   
+               // 如果距离小于阈值，把其当作内联点
+   			if (distance <= distanceThreshold) inliers.insert(i);
    		}
-   		// Return indicies of inliers from fitted line with most inliers
+   
+           // 选择具有最多内联点的索引集合作为返回值
    		if (inliers.size() > inliersResult.size())
    			inliersResult = inliers;
    	}
    	// 点云分割结束时间
        auto endTime = std::chrono::steady_clock::now();
        auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-       std::cout << "My RansacPlane segmentation took " << elapsedTime.count() << " milliseconds" << std::endl;
+       std::cout << "my RansacPlane segmentation took " << elapsedTime.count() << " milliseconds" << std::endl;
    
-   	return inliersResult;
+       // 将地面点云和障碍物点云分开
+       std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> segResult = SeparateClouds(inliersResult, cloud);
+       return segResult;
    }
    ```
    
@@ -495,7 +528,74 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
 
 #### 4.4 基于KD-Tree的点云聚类
 
+1. 为何使用 KD-Tree？
 
+   聚类是指把不同物体的点云分别组合聚集起来, 从而能让你跟踪汽车, 行人等多个目标. 其中一种对点云数据进行分组和聚类的方法称为**欧氏聚类**. **欧式聚类**是指将距离紧密度高的点云聚合起来. 为了有效地进行最近邻搜索, 可以使用 KD-Tree 数据结构, 这种结构平均可以加快从 O (n)到 O (log (n))的查找时间.  这是因为`Kd-Tree`允许你更好地分割你的搜索空间.  通过将点分组到 KD-Tree 中的区域中, 您可以避免计算可能有数千个点的距离, 因为两个不是足够近的区域的点将不会被考虑.
+
+2. PCL 欧式聚类
+
+   首先我们使用PCL内置的欧式聚类函数. 点云聚类的具体细节推荐查看PCL的官网文档[Euclidean Cluster](http://link.zhihu.com/?target=http%3A//pointclouds.org/documentation/tutorials/cluster_extraction).
+
+   ```c++
+   // 使用PCL内置的欧式聚类函数对障碍物点云进行聚类
+   // 参数：
+   //      - cloud：障碍物点云
+   //      - clusterTolerance：距离容忍度, 在这个距离之内的任何点都将被组合在一起
+   //      - minSize：设定一个集合中最小点数, 点数太小被视为噪音
+   //      - maxSize: 设定一个集合中最大点数, 点数太大被视为多个障碍物的重叠
+   template<typename PointT>
+   std::vector<typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::Clustering(typename pcl::PointCloud<PointT>::Ptr cloud, float clusterTolerance, int minSize, int maxSize)
+   {
+       // 聚类开始时间
+       auto startTime = std::chrono::steady_clock::now();
+   
+       // 返回值：聚类点云集合的列表
+       std::vector<typename pcl::PointCloud<PointT>::Ptr> clusters;
+   
+       // 创建KdTree对象用于提取障碍物的搜索方法
+       typename pcl::search::KdTree<PointT>::Ptr tree(new pcl::search::KdTree<PointT>);
+       tree->setInputCloud(cloud);
+   
+       std::vector<pcl::PointIndices> clusterIndices;  // 创建索引对象列表存放提取障碍物索引
+       pcl::EuclideanClusterExtraction<PointT> ec;     // 创建欧式聚类对象
+       ec.setClusterTolerance(clusterTolerance);       // 设置距离容忍度
+       ec.setMinClusterSize(minSize);                  // 设置最小点云数
+       ec.setMaxClusterSize(maxSize);                  // 设置最大点云数
+       ec.setSearchMethod(tree);                       // 设置KdTree的搜索方法
+       ec.setInputCloud(cloud);                        // 设置输入点云
+       ec.extract(clusterIndices);                     // 将聚类对象提取到clusterIndices
+   
+       // 根据索引对象得到聚类点云对象, 放入返回列表
+       for (pcl::PointIndices getIndices: clusterIndices)
+       {
+           typename pcl::PointCloud<PointT>::Ptr cloudCluster (new pcl::PointCloud<PointT>);
+   
+           for (int index: getIndices.indices)
+               cloudCluster->points.push_back(cloud->points[index]);
+   
+           cloudCluster->width = cloudCluster->points.size();
+           cloudCluster->height = 1;
+           cloudCluster->is_dense = true;
+   
+           clusters.push_back(cloudCluster);
+       }
+   
+       // 聚类结束时间
+       auto endTime = std::chrono::steady_clock::now();
+       auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+       std::cout << "clustering took " << elapsedTime.count() << " milliseconds and found " << clusters.size() << " clusters" << std::endl;
+   
+       return clusters;
+   }
+   ```
+
+   
+
+3. KD-Tree 原理
+
+   
+
+4. 实现 KD-Tree
 
 #### 4.5 边界框渲染
 
@@ -507,20 +607,6 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
 
 
 ### Lesson 03 Clustering Obstacles
-
-#### Concept of Clustering Obstacles
-
-- Overview for Clustring
-
-  You have a way to segment points and recognize which ones represent obstacles for your car. It would be great to break up and group those obstacle points, especially if you want to do multiple object tracking with cars, pedestrians, and bicyclists, for instance. One way to do that grouping and cluster point cloud data is called euclidean clustering.
-
-- Euclidean Clustering
-
-  The idea is you associate groups of points by how close together they are. To do a nearest neighbor search efficiently, you use a KD-Tree data structure which, on average, speeds up your look up time from O(n) to O(log(n)). This is because the tree allows you to better break up your search space. By grouping points into regions in a KD-Tree, you can avoid calculating distance for possibly thousands of points just because you know they are not even considered in a close enough region.
-
-  In this lesson, you will begin by seeing how to do Euclidean clustering using built-in PCL functions. Next, you will write your own clustering algorithm using a KD-Tree. Your implementation will be used in your project submission, so be sure to complete the implementation in the exercises that follow!
-
-  
 
 #### Euclidean Clustering with PCL
 

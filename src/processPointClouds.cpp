@@ -225,26 +225,26 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
 template<typename PointT>
 std::vector<typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::Clustering(typename pcl::PointCloud<PointT>::Ptr cloud, float clusterTolerance, int minSize, int maxSize)
 {
-
-    // Time clustering process
+    // 聚类开始时间
     auto startTime = std::chrono::steady_clock::now();
 
+    // 返回值：聚类点云集合的列表
     std::vector<typename pcl::PointCloud<PointT>::Ptr> clusters;
 
-    // TODO:: Fill in the function to perform euclidean clustering to group detected obstacles
-    // Creating the KdTree object for the search method of the extraction
+    // 创建KdTree对象用于提取障碍物的搜索方法
     typename pcl::search::KdTree<PointT>::Ptr tree(new pcl::search::KdTree<PointT>);
     tree->setInputCloud(cloud);
 
-    std::vector<pcl::PointIndices> clusterIndices;
-    pcl::EuclideanClusterExtraction<PointT> ec;
-    ec.setClusterTolerance(clusterTolerance);
-    ec.setMinClusterSize(minSize);
-    ec.setMaxClusterSize(maxSize);
-    ec.setSearchMethod(tree);
-    ec.setInputCloud(cloud);
-    ec.extract(clusterIndices);
+    std::vector<pcl::PointIndices> clusterIndices;  // 创建索引对象列表存放提取障碍物索引
+    pcl::EuclideanClusterExtraction<PointT> ec;     // 创建欧式聚类对象
+    ec.setClusterTolerance(clusterTolerance);       // 设置距离容忍度
+    ec.setMinClusterSize(minSize);                  // 设置最小点云数
+    ec.setMaxClusterSize(maxSize);                  // 设置最大点云数
+    ec.setSearchMethod(tree);                       // 设置KdTree的搜索方法
+    ec.setInputCloud(cloud);                        // 设置输入点云
+    ec.extract(clusterIndices);                     // 将聚类对象提取到clusterIndices
 
+    // 根据索引对象得到聚类点云对象, 放入返回列表
     for (pcl::PointIndices getIndices: clusterIndices)
     {
         typename pcl::PointCloud<PointT>::Ptr cloudCluster (new pcl::PointCloud<PointT>);
@@ -259,6 +259,7 @@ std::vector<typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::C
         clusters.push_back(cloudCluster);
     }
 
+    // 聚类结束时间
     auto endTime = std::chrono::steady_clock::now();
     auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
     std::cout << "clustering took " << elapsedTime.count() << " milliseconds and found " << clusters.size() << " clusters" << std::endl;
@@ -319,7 +320,7 @@ std::vector<boost::filesystem::path> ProcessPointClouds<PointT>::streamPcd(std::
     std::vector<boost::filesystem::path> paths(startIter, endIter);
     // std::vector<boost::filesystem::path> paths(boost::filesystem::directory_iterator{dataPath}, boost::filesystem::directory_iterator{});
 
-    // sort files in accending order so playback is chronological
+    //  按递增顺序对文件进行排序，以便按时间顺序进行播放
     sort(paths.begin(), paths.end());
 
     return paths;
