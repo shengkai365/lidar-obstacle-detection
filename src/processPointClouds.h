@@ -85,6 +85,7 @@ public:
     //      - cluster: 聚类点云指针
     // 返回：Box包围盒对象
     Box BoundingBox(typename pcl::PointCloud<PointT>::Ptr cluster);
+    BoxQ BoundingBoxQ(typename pcl::PointCloud<PointT>::Ptr cluster);
 
     void savePcd(typename pcl::PointCloud<PointT>::Ptr cloud, std::string file);
 

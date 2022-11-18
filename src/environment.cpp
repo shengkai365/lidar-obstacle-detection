@@ -51,7 +51,8 @@ void cityBlock(pcl::visualization::PCLVisualizer::Ptr& viewer, ProcessPointCloud
         renderPointCloud(viewer, cluster, "obstCloud" + std::to_string(clusterId), colors[clusterId % colors.size()]);
 
         // 4. 为每个障碍物群寻找边界框
-        Box box = pointProcessor->BoundingBox(cluster);
+        // Box box = pointProcessor->BoundingBox(cluster);
+        BoxQ box = pointProcessor->BoundingBoxQ(cluster);
         renderBox(viewer, box, clusterId, colors[clusterId % colors.size()]);
         clusterId ++;
     }

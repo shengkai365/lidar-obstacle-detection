@@ -593,70 +593,97 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
 
 3. KD-Tree 原理
 
+   https://leileiluoluo.com/posts/kdtree-algorithm-and-implementation.html
+
+   https://zhuanlan.zhihu.com/p/112246942
+
+   k-d tree即k-dimensional tree，常用来作空间划分及近邻搜索，是二叉空间划分树的一个特例。通常，对于维度为$k$，数据点数为$N$的数据集，k-d tree适用于$N>>2^k$的情形。
+
+   **算法原理：**k-d tree是每个节点均为k维数值点的二叉树，其上的每个节点代表一个超平面，该超平面垂直于当前划分维度的坐标轴，并在该维度上将空间划分为两部分，一部分在其左子树，另一部分在其右子树。即若当前节点的划分维度为d，其左子树上所有点在d维的坐标值均小于当前值，右子树上所有点在d维的坐标值均大于等于当前值，本定义对其任意子节点均成立。
+
+   **数据结构：**
+
+   ```
+   struct kdtree{
+       Node-data - 数据矢量   数据集中某个数据点，是n维矢量（这里也就是k维）
+       Range     - 空间矢量   该节点所代表的空间范围
+       split     - 整数       垂直于分割超平面的方向轴序号
+       Left      - kd树       由位于该节点分割超平面左子空间内所有数据点所构成的k-d树
+       Right     - kd树       由位于该节点分割超平面右子空间内所有数据点所构成的k-d树
+       parent    - kd树       父节点  
+   }
+   ```
+
+   **构建：**
+
+   ```
+   Input:  无序化的点云，维度k
+   Output：点云对应的kd-tree
+   Algorithm：
+   1、初始化分割轴：对每个维度的数据进行方差的计算，取最大方差的维度作为分割轴，标记为r；
+   2、确定节点：对当前数据按分割轴维度进行检索，找到中位数数据，并将其放入到当前节点上；
+   3、划分双支：
+       划分左支：在当前分割轴维度，所有小于中位数的值划分到左支中；
+       划分右支：在当前分割轴维度，所有大于等于中位数的值划分到右支中。
+   4、更新分割轴：r = (r + 1) % k;
+   5、确定子节点：
+       确定左节点：在左支的数据中进行步骤2；
+       确定右节点：在右支的数据中进行步骤2；
+   ```
+
+   **搜索：**
+
+   ```
+   Input:	kd-tree, 目标点云-target， 距离容忍度-distance
+   Output: 与目标点云距离小于距离容忍度的点云(point)列表
+   Algorithm:
+   1. 计算目标点云和当前节点的距离，如果小于距离容忍度，加入返回列表
+   2. 在当前节点的维度（如x轴）上，如果target[x] - distance < point[x], 
+      用kd-tree的左节点执行步骤1.
+   3. 在当前节点的维度（如x轴）上，如果target[x] + distance > point[x], 
+      用kd-tree的右节点执行步骤1.
+   ```
+
    
 
-4. 实现 KD-Tree
+4. 基于KD-Tree的欧式聚类
 
-#### 4.5 边界框渲染
+   执行欧氏聚类需要迭代遍历云中的每个点, 并跟踪已经处理过的点.  对于每个点, 将其添加到一个集群(cluster)的点列表中, 然后使用前面的搜索函数获得该点附近所有点的列表.  对于距离很近但尚未处理的每个点, 将其添加到集群中, 并重复调用`proximity`的过程.  对于第一个集群, 递归停止后, 创建一个新的集群并移动点列表, 对于新的集群重复上面的过程.  一旦处理完所有的点, 就会找到一定数量的集群, 返回一个集群列表.
 
+   ```
+   Proximity(point,cluster):
+       mark point as processed
+       add point to cluster
+       nearby points = tree(point) 	# search
+       Iterate through each nearby point
+           If point has not been processed
+               Proximity(cluster)
+   
+   EuclideanCluster():
+       list of clusters 
+       Iterate through each point
+           If point has not been processed
+               Create cluster
+               Proximity(point, cluster)
+               cluster add clusters
+       return clusters
+   ```
 
+   
+
+#### 4.5 基于PCA的边界框渲染
+
+包围盒也叫外接最小矩形,是一种求解离散点集最优包围空间的算法，基本思想是用体积稍大且特性简单的几何体（称为包围盒）来近似地代替复杂的几何对象。
+  常见的包围盒算法有AABB包围盒、包围球、方向包围盒OBB以及固定方向凸包FDH。碰撞检测问题在虚拟现实、计算机辅助设计与制造、游戏及机器人等领域有着广泛的应用，甚至成为关键技术。而包围盒算法是进行碰撞干涉初步检测的重要方法之一。
+
+最小包围盒的计算过程大致如下:
+1.利用PCA主元分析法获得点云的三个主方向，获取质心，计算协方差，获得协方差矩阵，求取协方差矩阵的特征值和特长向量，特征向量即为主方向。
+2.利用1中获得的主方向和质心，将输入点云转换至原点，且主方向与坐标系方向重回，建立变换到原点的点云的包围盒。
+3.给输入点云设置主方向和包围盒，通过输入点云到原点点云变换的逆变换实现。
+
+**求边界框算法步骤：**
+
+- 计算中心点$(c_0, c_1, c_2)$和归一化协方差
+- 
 
 ### 5. 取得结果
-
-
-
-
-### Lesson 03 Clustering Obstacles
-
-#### Euclidean Clustering with PCL
-
-Inside `pointProcessor`, the `Clustering` function is located right under the `SegmentPlane` function that you previously were working on.
-
-PCL provides some documentation for using its built in [euclidean clustering](http://pointclouds.org/documentation/tutorials/cluster_extraction) functions. In particular check out lines 71-82.
-
-- Euclidean Clustering Arguments
-
-  The euclidean clustering object `ec` takes in a distance tolerance. Any points within that distance will be grouped together. It also has min and max arguments for the number of points to represent as clusters. The idea is: if a cluster is really small, it’s probably just noise and we are not concerned with it. Also a max number of points allows us to better break up very large clusters. If a cluster is very large it might just be that many other clusters are overlapping, and a max tolerance can help us better resolve the object detections. The last argument to the euclidean cluster object is the Kd-Tree. The tree is created and built using the input cloud points, which in this case are going to be the obstacle cloud points.
-
-  Back in environment.cpp let's see how to render the different clusters.
-
-  ```cpp
-  std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> cloudClusters = pointProcessor->Clustering(segmentCloud.first, 1.0, 3, 30);
-  
-  int clusterId = 0;
-  std::vector<Color> colors = {Color(1,0,0), Color(0,1,0), Color(0,0,1)};
-  
-  for(pcl::PointCloud<pcl::PointXYZ>::Ptr cluster : cloudClusters)
-  {
-        std::cout << "cluster size ";
-        pointProcessor->numPoints(cluster);
-        renderPointCloud(viewer,cluster,"obstCloud"+std::to_string(clusterId),colors[clusterId]);
-        ++clusterId;
-  }
-  ```
-
-  In the code above, the `Clustering` method is called and then there is a loop to iterate through each cluster and call `renderPointCloud` on each cluster. The renderPointCloud is expecting each pcl viewer point cloud to have a unique identifier, so clusters are counted with `clusterId` and appended to the `obstCloud` string.
-
-  To get different colors for each of the clusters, a list of colors is defined. Here we simply use red, blue and green.
-
-  As a bonus the number of points for each cluster is logged. This can be a helpful debugging tool later when trying to pick good min and max point values.
-
-  In this example the min points for a cluster are set to 3, and the max set to 30. The distance tolerance is also set to 1. Some time and effort will be needed to pick good hyperparameters, but many cases actually there won't be a perfect combination to always get perfect results.
-
-- Instructions
-
-  - Define the function clusters in `pointProcessor` using the pcl document guide above for reference.
-  - Experiment with different hyperparameters for the clustering algorithm.
-  - In `environment.cpp` render the different clusters using the code sample above.
-
-#### Implementing KD Tree
-
-- Inserting Points into the Tree
-
-  A KD-Tree is a binary tree that splits points between alternating axes. By separating space by splitting regions, nearest neighbor search can be made much faster when using an algorithm like euclidean clustering. In this quiz you will be looking at a 2D example, so the the tree will be a 2D-Tree. In the first part of the quiz you will be working from `src/quiz/cluster/kdtree.h` and filling in the function `insert` which takes a 2D point represented by a vector containing two floats, and a point ID. The ID is a way to uniquely identify points and a way to tell which index the point is referenced from on the overall point cloud. To complete the `insert` function let's first talk about how a KD-Tree splits information.
-
-- Building KD-Tree
-
-  The image above shows what the 2D points look like. In this simple example there are only 11 points, and there are three clusters where points are in close proximity to each other. You will be finding these clusters later.
-
-  In `src/quiz/cluster/cluster.cpp` there is a function for rendering the tree after points have been inserted into it. The image below shows line separations, with blue lines splitting x regions and red lines splitting y regions. The image shows what the tree looks like after all 11 points have been inserted, and you will be writing the code to do this over the next concepts.
