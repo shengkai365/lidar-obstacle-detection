@@ -290,7 +290,45 @@ Box ProcessPointClouds<PointT>::BoundingBox(typename pcl::PointCloud<PointT>::Pt
 template<typename PointT>
 BoxQ ProcessPointClouds<PointT>::BoundingBoxQ(typename pcl::PointCloud<PointT>::Ptr cluster)
 {
+    // 计算原始点云质心 (x_, y_, z_)
+    Eigen::Vector4f pcaCentroid;
+    pcl::compute3DCentroid(*cluster, pcaCentroid);      
     
+    // 计算3 x 3协方差矩阵
+    Eigen::Matrix3f covariance;
+    computeCovarianceMatrixNormalized(*cluster, pcaCentroid, covariance);
+
+    // 求协方差矩阵的特性向量，即为主方向PCA
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eigen_solver(covariance, Eigen::ComputeEigenvectors);
+    Eigen::Matrix3f eigenVectorsPCA = eigen_solver.eigenvectors();
+
+    /// 叉乘，保证包围盒方向正确
+    eigenVectorsPCA.col(2) = eigenVectorsPCA.col(0).cross(eigenVectorsPCA.col(1));  
+
+    // 将输入点云转换至原点，且主方向与坐标系方向重合，建立变换到原点的点云的包围盒
+    // 这些特征向量被用来将点云转换到原点（0，0，0），从而使特征向量对应于空间的轴
+    Eigen::Matrix4f projectionTransform(Eigen::Matrix4f::Identity());
+    projectionTransform.block<3,3>(0,0) = eigenVectorsPCA.transpose();
+    projectionTransform.block<3,1>(0,3) = -1.f * (projectionTransform.block<3,3>(0,0) * pcaCentroid.head<3>());
+    typename pcl::PointCloud<PointT>::Ptr cloudPointsProjected (new pcl::PointCloud<PointT>);
+    pcl::transformPointCloud(*cluster, *cloudPointsProjected, projectionTransform);
+
+    // 获得转换后的输入点云的最小和最大点
+    PointT minPoint, maxPoint;
+    pcl::getMinMax3D(*cloudPointsProjected, minPoint, maxPoint);
+    const Eigen::Vector3f meanDiagonal = 0.5f*(maxPoint.getVector3fMap() + minPoint.getVector3fMap());
+
+    // 输入点云到原点点云变换的逆变换
+    const Eigen::Quaternionf bboxQuaternion(eigenVectorsPCA); //Quaternions are a way to do rotations https://www.youtube.com/watch?v=mHVwd8gYLnI
+    const Eigen::Vector3f bboxTransform = eigenVectorsPCA * meanDiagonal + pcaCentroid.head<3>();
+    
+    BoxQ box;
+    box.bboxQuaternion = bboxQuaternion;
+    box.bboxTransform = bboxTransform;
+    box.cube_length = maxPoint.x - minPoint.x;
+    box.cube_width = maxPoint.y - maxPoint.y;
+    box.cube_height = maxPoint.z - maxPoint.z;
+    return box;
 }
 
 template<typename PointT>

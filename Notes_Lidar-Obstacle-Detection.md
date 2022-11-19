@@ -14,7 +14,7 @@
 - 由于知道精确的发射角，因此可以定位坐标
 
 $$
-\begin{vmatrix} x \\ y \end{vmatrix} = \begin{vmatrix} d*cos(\alpha)\\d*sin(\alpha) \end{vmatrix}
+\begin{vmatrix} x \\ y \end{vmatrix} = \begin{vmatrix} d*cos(\alpha) \\ d*sin(\alpha) \end{vmatrix}
 $$
 
 - 同理，可求得三维坐标$(x,y,z)$
@@ -673,17 +673,74 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
 
 #### 4.5 基于PCA的边界框渲染
 
-包围盒也叫外接最小矩形,是一种求解离散点集最优包围空间的算法，基本思想是用体积稍大且特性简单的几何体（称为包围盒）来近似地代替复杂的几何对象。
-  常见的包围盒算法有AABB包围盒、包围球、方向包围盒OBB以及固定方向凸包FDH。碰撞检测问题在虚拟现实、计算机辅助设计与制造、游戏及机器人等领域有着广泛的应用，甚至成为关键技术。而包围盒算法是进行碰撞干涉初步检测的重要方法之一。
+包围盒也叫外接最小矩形,是一种求解离散点集最优包围空间的算法，基本思想是用体积稍大且特性简单的几何体（称为包围盒）来近似地代替复杂的几何对象。常见的包围盒算法有AABB包围盒、包围球、方向包围盒OBB以及固定方向凸包FDH。碰撞检测问题在虚拟现实、计算机辅助设计与制造、游戏及机器人等领域有着广泛的应用，甚至成为关键技术。而包围盒算法是进行碰撞干涉初步检测的重要方法之一。
 
 最小包围盒的计算过程大致如下:
-1.利用PCA主元分析法获得点云的三个主方向，获取质心，计算协方差，获得协方差矩阵，求取协方差矩阵的特征值和特长向量，特征向量即为主方向。
-2.利用1中获得的主方向和质心，将输入点云转换至原点，且主方向与坐标系方向重回，建立变换到原点的点云的包围盒。
-3.给输入点云设置主方向和包围盒，通过输入点云到原点点云变换的逆变换实现。
 
-**求边界框算法步骤：**
+1. 利用PCA主元分析法获得点云的三个主方向，获取质心，计算协方差，获得协方差矩阵，求取协方差矩阵的特征值和特长向量，特征向量即为主方向。
+2. 利用1中获得的主方向和质心，将输入点云转换至原点，且主方向与坐标系方向重合，建立变换到原点的点云的包围盒。
+3. 给输入点云设置主方向和包围盒，通过输入点云到原点点云变换的逆变换实现。
+4. [参考](https://codextechnicanum.blogspot.com/2015/04/find-minimum-oriented-bounding-box-of.html)
 
-- 计算中心点$(c_0, c_1, c_2)$和归一化协方差
-- 
+```c++
+struct BoxQ
+{
+	Eigen::Vector3f bboxTransform;
+	Eigen::Quaternionf bboxQuaternion;
+	float cube_length;
+    float cube_width;
+    float cube_height;
+};
+
+// 根据聚类物体点云基于PCA创建box对象
+// 参数：
+//      - cluster: 聚类点云指针
+// 返回：BoxQ包围盒对象
+template<typename PointT>
+BoxQ ProcessPointClouds<PointT>::BoundingBoxQ(typename pcl::PointCloud<PointT>::Ptr cluster)
+{
+    // 计算原始点云质心 (x_, y_, z_)
+    Eigen::Vector4f pcaCentroid;
+    pcl::compute3DCentroid(*cluster, pcaCentroid);      
+    
+    // 计算3 x 3协方差矩阵
+    Eigen::Matrix3f covariance;
+    computeCovarianceMatrixNormalized(*cluster, pcaCentroid, covariance);
+
+    // 求协方差矩阵的特性向量，即为主方向PCA
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eigen_solver(covariance, Eigen::ComputeEigenvectors);
+    Eigen::Matrix3f eigenVectorsPCA = eigen_solver.eigenvectors();
+
+    /// 叉乘，保证包围盒方向正确
+    eigenVectorsPCA.col(2) = eigenVectorsPCA.col(0).cross(eigenVectorsPCA.col(1));  
+
+    // 将输入点云转换至原点，且主方向与坐标系方向重合，建立变换到原点的点云的包围盒
+    // 这些特征向量被用来将点云转换到原点（0，0，0），从而使特征向量对应于空间的轴
+    Eigen::Matrix4f projectionTransform(Eigen::Matrix4f::Identity());
+    projectionTransform.block<3,3>(0,0) = eigenVectorsPCA.transpose();
+    projectionTransform.block<3,1>(0,3) = -1.f * (projectionTransform.block<3,3>(0,0) * pcaCentroid.head<3>());
+    typename pcl::PointCloud<PointT>::Ptr cloudPointsProjected (new pcl::PointCloud<PointT>);
+    pcl::transformPointCloud(*cluster, *cloudPointsProjected, projectionTransform);
+
+    // 获得转换后的输入点云的最小和最大点
+    PointT minPoint, maxPoint;
+    pcl::getMinMax3D(*cloudPointsProjected, minPoint, maxPoint);
+    const Eigen::Vector3f meanDiagonal = 0.5f*(maxPoint.getVector3fMap() + minPoint.getVector3fMap());
+
+    // 输入点云到原点点云变换的逆变换
+    const Eigen::Quaternionf bboxQuaternion(eigenVectorsPCA); //Quaternions are a way to do rotations https://www.youtube.com/watch?v=mHVwd8gYLnI
+    const Eigen::Vector3f bboxTransform = eigenVectorsPCA * meanDiagonal + pcaCentroid.head<3>();
+    
+    BoxQ box;
+    box.bboxQuaternion = bboxQuaternion;
+    box.bboxTransform = bboxTransform;
+    box.cube_length = maxPoint.x - minPoint.x;
+    box.cube_width = maxPoint.y - maxPoint.y;
+    box.cube_height = maxPoint.z - maxPoint.z;
+    return box;
+}
+```
+
+
 
 ### 5. 取得结果
